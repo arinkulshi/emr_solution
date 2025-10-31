@@ -5,14 +5,9 @@ from datetime import datetime
 
 def parse_hl7_message(hl7_message: str) -> hl7.Message:
     """Parse HL7 message string into hl7.Message object"""
-    # Normalize line endings to HL7 standard (CR) so the parser can
-    # correctly split segments. Accept CRLF or LF and convert to CR.
-    if not hl7_message:
-        return hl7.parse(hl7_message)
-
-    # Convert CRLF -> CR, then LF -> CR
-    normalized = hl7_message.replace('\r\n', '\r').replace('\n', '\r')
-    return hl7.parse(normalized)
+    # Normalize line separators: CRLF or LF -> CR (HL7 standard)
+    hl7_message = hl7_message.replace('\r\n', '\r').replace('\n', '\r')
+    return hl7.parse(hl7_message)
 
 
 def parse_hl7_date(date_str: str) -> Optional[str]:
@@ -122,8 +117,7 @@ def in1_to_fhir_coverage(in1_segment, patient_reference: str) -> Dict:
         "beneficiary": {
             "reference": patient_reference
         },
-        "payor": [],
-        "class": []
+        "payor": []
     }
     
     # IN1-2: Member ID
@@ -140,32 +134,38 @@ def in1_to_fhir_coverage(in1_segment, patient_reference: str) -> Dict:
     
     # IN1-8: Group Number
     if len(in1_segment) > 8 and in1_segment[8]:
-        group_number = str(in1_segment[8])
-        coverage["class"].append({
-            "type": {
-                "coding": [{
-                    "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
-                    "code": "group",
-                    "display": "Group"
-                }]
-            },
-            "value": group_number
-        })
+        group_number = str(in1_segment[8]).strip()
+        if group_number:  # Only add if not empty
+            if "class" not in coverage:
+                coverage["class"] = []
+            coverage["class"].append({
+                "type": {
+                    "coding": [{
+                        "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                        "code": "group",
+                        "display": "Group"
+                    }]
+                },
+                "value": group_number
+            })
     
     # IN1-9: Group Name / Plan
     if len(in1_segment) > 9 and in1_segment[9]:
-        plan_name = str(in1_segment[9])
-        coverage["class"].append({
-            "type": {
-                "coding": [{
-                    "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
-                    "code": "plan",
-                    "display": "Plan"
-                }]
-            },
-            "value": plan_name,
-            "name": plan_name
-        })
+        plan_name = str(in1_segment[9]).strip()
+        if plan_name:  # Only add if not empty
+            if "class" not in coverage:
+                coverage["class"] = []
+            coverage["class"].append({
+                "type": {
+                    "coding": [{
+                        "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                        "code": "plan",
+                        "display": "Plan"
+                    }]
+                },
+                "value": plan_name,
+                "name": plan_name
+            })
     
     return coverage
 
