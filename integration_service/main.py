@@ -2,21 +2,19 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from emr_server.fhir_proxy import router as fhir_router
-from emr_server.hl7_endpoint import router as hl7_router
-from emr_server.auth import create_access_token
+from integration_service.patient_service import router as patient_router
 
 # Create FastAPI application
 app = FastAPI(
-    title="EMR Server",
-    description="EMR Server that wraps Medplum FHIR API and provides HL7 integration",
+    title="Integration Service",
+    description="Integration service that syncs patient data with EMR Server",
     version="1.0.0"
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,8 +47,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
-app.include_router(fhir_router)
-app.include_router(hl7_router)
+app.include_router(patient_router)
 
 
 # Root endpoints
@@ -58,32 +55,12 @@ app.include_router(hl7_router)
 async def root():
     """Root endpoint"""
     return {
-        "message": "EMR Server is running",
+        "message": "Integration Service is running",
         "version": "1.0.0",
         "endpoints": {
-            "auth": "/auth/token",
-            "fhir": "/fhir/*",
-            "hl7": "/hl7/inbound",
+            "patient": "/patient/",
             "health": "/health"
         }
-    }
-
-
-@app.post("/auth/token")
-async def get_token():
-    """
-    Issue a new access token for clients
-    
-    Returns:
-        access_token: Bearer token to use in Authorization header
-        token_type: "bearer"
-        expires_in: Token validity in seconds (86400 = 24 hours)
-    """
-    token = create_access_token()
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "expires_in": 86400
     }
 
 
@@ -92,7 +69,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "service": "EMR Server"
+        "service": "Integration Service"
     }
 
 
@@ -100,14 +77,12 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     """Run on application startup"""
-    print("EMR Server starting up...")
-    print("FHIR Proxy endpoints available at /fhir/*")
-    print("HL7 Inbound endpoint available at /hl7/inbound")
-    print("Authentication endpoint at /auth/token")
+    print("Integration Service starting up...")
+    print("Patient service available at /patient/")
 
 
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Run on application shutdown"""
-    print("EMR Server shutting down...")
+    print("Integration Service shutting down...")
