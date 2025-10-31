@@ -80,8 +80,15 @@ async def check_patient_exists(mrn: str, token: str) -> Optional[dict]:
             return None
         
         bundle = response.json()
+        
+        # Check if we found any patients and verify MRN matches
         if bundle.get("total", 0) > 0 and bundle.get("entry"):
-            return bundle["entry"][0]["resource"]
+            for entry in bundle.get("entry", []):
+                patient = entry.get("resource", {})
+                identifiers = patient.get("identifier", [])
+                for identifier in identifiers:
+                    if identifier.get("value") == mrn:
+                        return patient
         
         return None
 
@@ -207,6 +214,16 @@ async def create_or_update_patient(patient_data: PatientData):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send to EMR: {str(e)}"
+        )
+    
+    # Check if EMR found existing patient or created new one
+    patient_action = emr_response.get("summary", {}).get("patient", {}).get("action")
+    
+    if patient_action == "found":
+        # EMR found existing patient - return error to prevent confusion
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Patient with MRN {patient_data.mrn} already exists in EMR"
         )
     
     return {
