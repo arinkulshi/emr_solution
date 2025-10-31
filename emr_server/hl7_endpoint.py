@@ -13,24 +13,28 @@ router = APIRouter(prefix="/hl7", tags=["HL7"])
 async def search_patient_by_mrn(mrn: str, medplum_token: str) -> dict:
     """Search for existing patient by MRN identifier"""
     url = f"{MEDPLUM_BASE_URL}/Patient"
-    params = {
-        "identifier": mrn
-    }
     
     async with httpx.AsyncClient() as client:
+        # Get ALL patients and search through them
         response = await client.get(
             url,
-            params=params,
             headers={"Authorization": f"Bearer {medplum_token}"}
         )
         
-        if response.status_code != 200:
-            return None
+        if response.status_code == 200:
+            bundle = response.json()
+            if bundle.get("entry"):
+                # Check every patient for matching MRN
+                for entry in bundle.get("entry", []):
+                    patient = entry.get("resource", {})
+                    identifiers = patient.get("identifier", [])
+                    for identifier in identifiers:
+                        # Match on value only
+                        if identifier.get("value") == mrn:
+                            print(f"Found existing patient with MRN {mrn}: {patient.get('id')}")
+                            return patient
         
-        bundle = response.json()
-        if bundle.get("total", 0) > 0 and bundle.get("entry"):
-            return bundle["entry"][0]["resource"]
-        
+        print(f"No existing patient found with MRN {mrn}")
         return None
 
 
